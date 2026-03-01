@@ -7,9 +7,7 @@ import random
 import string
 from datetime import datetime, timedelta, time
 
-# ======================================================
-# DATABASE CONNECTION
-# ======================================================
+# ================= DATABASE =================
 
 @st.cache_resource
 def get_connection():
@@ -19,10 +17,6 @@ def get_connection():
 
 conn = get_connection()
 c = conn.cursor()
-
-# ======================================================
-# INITIALIZE DATABASE
-# ======================================================
 
 def init_db():
 
@@ -36,18 +30,10 @@ def init_db():
     """)
 
     c.execute("""
-    CREATE TABLE IF NOT EXISTS specialists(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE
-    )
-    """)
-
-    c.execute("""
     CREATE TABLE IF NOT EXISTS doctors(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
         email TEXT UNIQUE,
-        specialist TEXT,
         shift_start TEXT,
         shift_end TEXT
     )
@@ -108,9 +94,7 @@ def init_db():
 
 init_db()
 
-# ======================================================
-# UTILITIES
-# ======================================================
+# ================= UTILITIES =================
 
 def hash_password(p):
     return hashlib.sha256(p.encode()).hexdigest()
@@ -127,9 +111,7 @@ def generate_slots(start, end):
         current += timedelta(minutes=20)
     return slots
 
-# ======================================================
-# UI STYLE
-# ======================================================
+# ================= UI STYLE =================
 
 st.set_page_config(layout="wide")
 
@@ -143,16 +125,10 @@ border-radius:20px;color:white;font-weight:bold;}
 </style>
 """, unsafe_allow_html=True)
 
-# ======================================================
-# SESSION
-# ======================================================
-
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# ======================================================
-# LOGIN / REGISTER
-# ======================================================
+# ================= LOGIN =================
 
 if st.session_state.user is None:
 
@@ -184,9 +160,7 @@ if st.session_state.user is None:
             else:
                 st.error("Invalid credentials")
 
-# ======================================================
-# MAIN APPLICATION
-# ======================================================
+# ================= MAIN SYSTEM =================
 
 else:
 
@@ -200,16 +174,15 @@ else:
         st.session_state.user = None
         st.rerun()
 
-# ======================================================
+# =====================================================
 # ADMIN PANEL
-# ======================================================
+# =====================================================
 
     if role == "Admin":
 
-        page = st.sidebar.radio("Navigation",
-            ["Dashboard","Add Specialist","Add Doctor",
-             "Add Nurse","Register Receptionist",
-             "Queries","Reports"])
+        page = st.sidebar.radio("Admin Options",
+            ["Dashboard","Add Doctor","Add Nurse",
+             "Register Receptionist","Queries","Download Report"])
 
         if page == "Dashboard":
 
@@ -223,11 +196,10 @@ else:
             col1,col2,col3,col4 = st.columns(4)
             col1.metric("Total Revenue", f"₹ {total_revenue}")
             col2.metric("Total Doctors", len(pd.read_sql("SELECT * FROM doctors",conn)))
-            col3.metric("Total Patients", len(pd.read_sql("SELECT * FROM patients",conn)))
+            col3.metric("Total Nurses", len(pd.read_sql("SELECT * FROM nurses",conn)))
             col4.metric("Total Visits", total_visits)
 
             if not df.empty:
-
                 revenue_chart = df.groupby("date")["amount"].sum().reset_index()
                 visit_chart = df.groupby("date")["patient"].count().reset_index()
 
@@ -239,50 +211,28 @@ else:
                                title="Daily Patient Visits")
                 st.plotly_chart(fig2, use_container_width=True)
 
-        elif page == "Add Specialist":
-
-            st.title("Add Specialist")
-            spec = st.text_input("Specialist Name")
-
-            if st.button("Add Specialist"):
-                try:
-                    c.execute("INSERT INTO specialists (name) VALUES (?)",(spec,))
-                    conn.commit()
-                    st.success("Specialist Added")
-                except:
-                    st.warning("Already exists")
-
-            st.dataframe(pd.read_sql("SELECT * FROM specialists",conn))
-
         elif page == "Add Doctor":
 
             st.title("Add Doctor")
 
-            specs = pd.read_sql("SELECT name FROM specialists",conn)
+            name = st.text_input("Doctor Name")
+            email = st.text_input("Doctor Email")
+            start = st.time_input("Shift Start", time(8,0))
+            end = st.time_input("Shift End", time(18,0))
 
-            if specs.empty:
-                st.warning("Add specialist first")
-            else:
-                name = st.text_input("Doctor Name")
-                email = st.text_input("Doctor Email")
-                specialist = st.selectbox("Specialist", specs["name"])
-                start = st.time_input("Shift Start",time(8,0))
-                end = st.time_input("Shift End",time(18,0))
+            if st.button("Add Doctor"):
+                password = generate_password()
+                try:
+                    c.execute("INSERT INTO doctors VALUES (NULL,?,?,?,?)",
+                              (name,email,str(start),str(end)))
+                    c.execute("INSERT INTO users VALUES (?,?,?,?)",
+                              (email,hash_password(password),'Doctor',name))
+                    conn.commit()
+                    st.success(f"Doctor Added. Password: {password}")
+                except:
+                    st.error("Doctor already exists")
 
-                if st.button("Add Doctor"):
-                    password = generate_password()
-                    try:
-                        c.execute("INSERT INTO doctors VALUES (NULL,?,?,?,?,?)",
-                                  (name,email,specialist,str(start),str(end)))
-                        c.execute("INSERT INTO users VALUES (?,?,?,?)",
-                                  (email,hash_password(password),'Doctor',name))
-                        conn.commit()
-                        st.success(f"Doctor Added. Password: {password}")
-                    except:
-                        st.error("Doctor already exists")
-
-                st.subheader("Doctors List")
-                st.dataframe(pd.read_sql("SELECT * FROM doctors",conn))
+            st.dataframe(pd.read_sql("SELECT * FROM doctors",conn))
 
         elif page == "Add Nurse":
 
@@ -296,8 +246,8 @@ else:
                 name = st.text_input("Nurse Name")
                 email = st.text_input("Nurse Email")
                 allocated = st.selectbox("Allocated Doctor", doctors["name"])
-                start = st.time_input("Shift Start",time(8,0))
-                end = st.time_input("Shift End",time(18,0))
+                start = st.time_input("Shift Start", time(8,0))
+                end = st.time_input("Shift End", time(18,0))
 
                 if st.button("Add Nurse"):
                     password = generate_password()
@@ -309,14 +259,14 @@ else:
                         conn.commit()
                         st.success(f"Nurse Added. Password: {password}")
                     except:
-                        st.error("Nurse already exists")
+                        st.error("Nurse exists")
 
-                st.subheader("Nurse List")
                 st.dataframe(pd.read_sql("SELECT * FROM nurses",conn))
 
         elif page == "Register Receptionist":
 
             st.title("Register Receptionist")
+
             name = st.text_input("Name")
             email = st.text_input("Email")
 
@@ -328,40 +278,31 @@ else:
                     conn.commit()
                     st.success(f"Receptionist Added. Password: {password}")
                 except:
-                    st.error("User already exists")
+                    st.error("User exists")
 
         elif page == "Queries":
 
-            st.title("Patient Queries")
-
+            st.title("All Patient Queries")
             qdf = pd.read_sql("SELECT * FROM queries",conn)
+            st.dataframe(qdf)
 
-            if not qdf.empty:
-                st.dataframe(qdf)
+            qid = st.number_input("Enter Query ID to Resolve", min_value=1, step=1)
+            if st.button("Mark Resolved"):
+                c.execute("UPDATE queries SET status='Resolved' WHERE id=?",(qid,))
+                conn.commit()
+                st.success("Resolved")
 
-                query_id = st.number_input("Enter Query ID to Resolve", min_value=1, step=1)
-
-                if st.button("Mark Resolved"):
-                    c.execute("UPDATE queries SET status='Resolved' WHERE id=?",(query_id,))
-                    conn.commit()
-                    st.success("Marked as Resolved")
-            else:
-                st.info("No Queries")
-
-        elif page == "Reports":
-
-            st.title("Download Appointment Report")
+        elif page == "Download Report":
 
             df = pd.read_sql("SELECT * FROM appointments",conn)
-
             if not df.empty:
                 st.download_button("Download CSV",
                                    df.to_csv(index=False),
                                    "appointments.csv")
 
-# ======================================================
+# =====================================================
 # RECEPTIONIST
-# ======================================================
+# =====================================================
 
     elif role == "Receptionist":
 
@@ -370,7 +311,6 @@ else:
 
         if page == "Register Patient":
 
-            st.title("Register Patient")
             pname = st.text_input("Name")
             pemail = st.text_input("Email")
             blood = st.selectbox("Blood Group",
@@ -384,21 +324,22 @@ else:
 
         elif page == "Book Appointment":
 
-            st.title("Book Appointment")
-
             doctors = pd.read_sql("SELECT name FROM doctors",conn)
             patients = pd.read_sql("SELECT name FROM patients",conn)
 
-            if not doctors.empty and not patients.empty:
-
+            if doctors.empty:
+                st.warning("No doctors available")
+            elif patients.empty:
+                st.warning("No patients available")
+            else:
                 doctor = st.selectbox("Doctor", doctors["name"])
                 patient = st.selectbox("Patient", patients["name"])
                 date = st.date_input("Date")
                 amount = st.number_input("Amount")
-                slots = generate_slots(time(8,0),time(18,0))
-                slot = st.selectbox("Slot", slots)
+                slot = st.selectbox("Slot",
+                                    generate_slots(time(8,0),time(18,0)))
 
-                if st.button("Book Appointment"):
+                if st.button("Book"):
                     c.execute("""
                     INSERT INTO appointments
                     (patient,doctor,slot,date,amount)
@@ -407,9 +348,9 @@ else:
                     conn.commit()
                     st.success("Appointment Booked")
 
-# ======================================================
+# =====================================================
 # DOCTOR
-# ======================================================
+# =====================================================
 
     elif role == "Doctor":
 
@@ -419,26 +360,27 @@ else:
         df = pd.read_sql(f"SELECT * FROM appointments WHERE doctor='{username}'",conn)
         st.dataframe(df)
 
-        st.subheader("Queries")
+        st.subheader("My Queries")
         qdf = pd.read_sql(f"""
         SELECT * FROM queries
-        WHERE doctor='{username}' OR target='Doctor'
+        WHERE doctor='{username}' OR target='Management'
         """,conn)
         st.dataframe(qdf)
 
-# ======================================================
+# =====================================================
 # NURSE
-# ======================================================
+# =====================================================
 
     elif role == "Nurse":
 
         st.title("Nurse Panel")
+
         df = pd.read_sql(f"SELECT * FROM nurses WHERE name='{username}'",conn)
         st.dataframe(df)
 
-# ======================================================
+# =====================================================
 # PATIENT
-# ======================================================
+# =====================================================
 
     elif role == "Patient":
 
@@ -451,25 +393,23 @@ else:
 
         elif page == "Send Query":
 
-            st.title("Send Query")
-
             target = st.selectbox("Query To", ["Doctor","Management"])
-            message = st.text_area("Enter your query")
+            message = st.text_area("Message")
             doctor_name = None
 
             if target == "Doctor":
                 doctors = pd.read_sql("SELECT name FROM doctors",conn)
                 doctor_name = st.selectbox("Select Doctor", doctors["name"])
 
-            if st.button("Submit Query"):
+            if st.button("Submit"):
                 c.execute("""
                 INSERT INTO queries
                 (patient,target,doctor,message,status)
                 VALUES (?,?,?,?,?)
                 """,(username,target,doctor_name,message,"Pending"))
                 conn.commit()
-                st.success("Query Submitted")
+                st.success("Query Sent")
 
             st.subheader("My Queries")
-            my_queries = pd.read_sql(f"SELECT * FROM queries WHERE patient='{username}'",conn)
-            st.dataframe(my_queries)
+            myq = pd.read_sql(f"SELECT * FROM queries WHERE patient='{username}'",conn)
+            st.dataframe(myq)
