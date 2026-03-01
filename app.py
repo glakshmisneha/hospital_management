@@ -5,27 +5,34 @@ import admin, doctor, receptionist, staff, patient
 
 create_tables()
 
-st.set_page_config(page_title="Hospital Analytics Dashboard", layout="wide")
+st.set_page_config(page_title="Hospital Management", layout="wide")
 
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# ---------------- LOGIN / REGISTER ---------------- #
+def logout():
+    st.session_state.user = None
+    st.rerun()
+
+# ---------------- LOGIN PAGE ---------------- #
 
 def login_page():
     st.title("🏥 Hospital Management System")
 
-    menu = st.radio("Select Option", ["Login", "Register"])
+    menu = st.radio("Select Option", ["Login", "Register (Patients Only)"])
 
-    if menu == "Register":
+    if menu == "Register (Patients Only)":
         name = st.text_input("Name")
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
-        role = st.selectbox("Role", ["Patient"])
 
         if st.button("Register"):
             if email.endswith("@gmail.com"):
-                register_user(name,email,password,role)
+                success = register_user(name,email,password,"Patient")
+                if success:
+                    st.success("Registered Successfully")
+                else:
+                    st.error("User already exists")
             else:
                 st.error("Patients must use gmail")
 
@@ -41,11 +48,14 @@ def login_page():
             else:
                 st.error("Invalid Credentials")
 
-# ---------------- ROUTING ---------------- #
+# ---------------- ROLE ROUTING ---------------- #
 
 if st.session_state.user is None:
     login_page()
 else:
+    st.sidebar.write(f"Welcome {st.session_state.user[1]}")
+    st.sidebar.button("Logout", on_click=logout)
+
     role = st.session_state.user[4]
 
     if role == "Admin":
