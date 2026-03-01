@@ -8,7 +8,7 @@ def create_tables():
     conn = get_connection()
     c = conn.cursor()
 
-    # Users
+    # USERS TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,15 +19,7 @@ def create_tables():
     )
     """)
 
-    # Specialists
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS specialists(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE
-    )
-    """)
-
-    # Doctors
+    # DOCTORS TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS doctors(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +32,7 @@ def create_tables():
     )
     """)
 
-    # Patients
+    # PATIENTS TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS patients(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +42,7 @@ def create_tables():
     )
     """)
 
-    # Rooms
+    # ROOMS TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS rooms(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,7 +52,7 @@ def create_tables():
     )
     """)
 
-    # Appointments
+    # APPOINTMENTS TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS appointments(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +64,7 @@ def create_tables():
     )
     """)
 
-    # Queries
+    # QUERIES TABLE
     c.execute("""
     CREATE TABLE IF NOT EXISTS queries(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,6 +72,12 @@ def create_tables():
         target TEXT,
         message TEXT
     )
+    """)
+
+    # 🔥 AUTO CREATE ADMIN
+    c.execute("""
+    INSERT OR IGNORE INTO users (name,email,password,role)
+    VALUES ('Admin','admin@admin.com','admin123','Admin')
     """)
 
     conn.commit()
