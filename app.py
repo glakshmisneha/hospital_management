@@ -213,24 +213,51 @@ else:
 
         elif page == "Add Doctor":
 
-            st.title("Add Doctor")
+    st.title("Add Doctor")
 
-            name = st.text_input("Doctor Name")
-            email = st.text_input("Doctor Email")
-            start = st.time_input("Shift Start", time(8,0))
-            end = st.time_input("Shift End", time(18,0))
+    name = st.text_input("Doctor Name")
+    email = st.text_input("Doctor Email")
+    start = st.time_input("Shift Start", time(8,0))
+    end = st.time_input("Shift End", time(18,0))
 
-            if st.button("Add Doctor"):
+    if st.button("Add Doctor"):
+
+        if not name or not email:
+            st.warning("Please enter doctor name and email")
+        else:
+            # Check if email already exists in doctors
+            existing_doc = pd.read_sql(
+                "SELECT * FROM doctors WHERE email=?",
+                conn,
+                params=(email,)
+            )
+
+            if not existing_doc.empty:
+                st.error("Doctor with this email already exists")
+            else:
                 password = generate_password()
+
                 try:
-                    c.execute("INSERT INTO doctors VALUES (NULL,?,?,?,?)",
-                              (name,email,str(start),str(end)))
-                    c.execute("INSERT INTO users VALUES (?,?,?,?)",
-                              (email,hash_password(password),'Doctor',name))
+                    c.execute(
+                        "INSERT INTO doctors (name,email,shift_start,shift_end) VALUES (?,?,?,?)",
+                        (name,email,str(start),str(end))
+                    )
+
+                    c.execute(
+                        "INSERT INTO users (email,password,role,name) VALUES (?,?,?,?)",
+                        (email,hash_password(password),'Doctor',name)
+                    )
+
                     conn.commit()
-                    st.success(f"Doctor Added. Password: {password}")
-                except:
-                    st.error("Doctor already exists")
+                    st.success(f"Doctor Added Successfully ✅")
+                    st.info(f"Login Email: {email}")
+                    st.info(f"Password: {password}")
+
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+    st.subheader("Doctors List")
+    st.dataframe(pd.read_sql("SELECT * FROM doctors",conn))
 
             st.dataframe(pd.read_sql("SELECT * FROM doctors",conn))
 
