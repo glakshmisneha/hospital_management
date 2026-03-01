@@ -235,6 +235,7 @@ admin@admin.com
 Password:
 
 Admin@123
+
 👨‍💼 Admin Capabilities
 
 Add Doctors with shift timings
@@ -249,10 +250,12 @@ Download appointment reports
 
 View and resolve patient queries
 
+
 👨‍⚕ Doctor Login
 
 Doctors are registered by the Admin.
 When a doctor is added, the system automatically generates login credentials.
+
 
 🔑 Login Process
 
