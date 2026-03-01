@@ -218,6 +218,123 @@ Hashlib (Password Security)
 
 
 
+🔐 Login Credentials & User Roles
+
+MediVista follows a role-based authentication system, where each user logs in according to their assigned role. Every role has different access permissions and functionalities.
+
+👑 Admin Login
+
+The Admin has full system control and manages all hospital operations.
+
+🔑 Default Credentials
+
+Email:
+
+admin@admin.com
+
+Password:
+
+Admin@123
+👨‍💼 Admin Capabilities
+
+Add Doctors with shift timings
+
+Add Nurses and allocate them to doctors
+
+Register Receptionists
+
+View dashboard analytics (Revenue & Visits)
+
+Download appointment reports
+
+View and resolve patient queries
+
+👨‍⚕ Doctor Login
+
+Doctors are registered by the Admin.
+When a doctor is added, the system automatically generates login credentials.
+
+🔑 Login Process
+
+Email: Doctor email entered by Admin
+
+Password: Auto-generated and shown during registration
+
+🩺 Doctor Capabilities
+
+View assigned appointments
+
+View appointment slots and dates
+
+Access patient queries
+
+Check shift timings
+
+👩‍⚕ Nurse Login
+
+Nurses are also registered by the Admin and assigned to a specific doctor.
+
+🔑 Login Process
+
+Email: Nurse email entered by Admin
+
+Password: Auto-generated during registration
+
+🏥 Nurse Capabilities
+
+View allocated doctor
+
+View shift schedule
+
+Limited role-based access
+
+👩‍💼 Receptionist Login
+
+Receptionists are registered by the Admin.
+
+🔑 Login Process
+
+Email: Receptionist email entered by Admin
+
+Password: Auto-generated during registration
+
+📋 Receptionist Capabilities
+
+Register new patients
+
+Select blood group
+
+Book appointments
+
+Choose 20-minute time slots
+
+Add payment amount
+
+View appointment list
+
+👤 Patient Login
+
+Patients can self-register using the Register option.
+
+🔑 Login Process
+
+Register using email and password
+
+Use same credentials to login
+
+🧑‍⚕ Patient Capabilities
+
+View appointments
+
+Send query to Doctor
+
+Send query to Management
+
+Track query status (Pending / Resolved)
+
+
+
+
 🔐 Security Features
 
 SHA-256 password hashing
