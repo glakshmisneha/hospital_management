@@ -19,7 +19,7 @@ conn = get_connection()
 c = conn.cursor()
 
 # ======================================================
-# INITIALIZE DATABASE (SCHEMA SAFE)
+# INITIALIZE DATABASE
 # ======================================================
 
 def init_db():
@@ -199,7 +199,7 @@ else:
         st.rerun()
 
     # ==================================================
-    # ADMIN PANEL
+    # ADMIN DASHBOARD
     # ==================================================
 
     if role == "Admin":
@@ -207,97 +207,92 @@ else:
         page = st.sidebar.radio("Navigation",
             ["Dashboard","Doctors","Nurses","Rooms","Staff Registration","Queries"])
 
-        # ---------------- DASHBOARD ----------------
         if page == "Dashboard":
 
-            st.title("📊 Hospital Analytics Dashboard")
+            st.title("📊 Hospital Dashboard")
 
-            df_app = pd.read_sql("SELECT * FROM appointments", conn)
-            df_doc = pd.read_sql("SELECT * FROM doctors", conn)
-            df_pat = pd.read_sql("SELECT * FROM patients", conn)
-
-            revenue = df_app["amount"].sum() + df_app["room_amount"].sum() if not df_app.empty else 0
+            df = pd.read_sql("SELECT * FROM appointments", conn)
+            revenue = df["amount"].sum() + df["room_amount"].sum() if not df.empty else 0
 
             col1,col2,col3,col4 = st.columns(4)
             col1.metric("Total Revenue", f"₹ {revenue}")
-            col2.metric("Total Patients", len(df_pat))
-            col3.metric("Total Doctors", len(df_doc))
-            col4.metric("Total Visits", len(df_app))
+            col2.metric("Total Patients", len(pd.read_sql("SELECT * FROM patients", conn)))
+            col3.metric("Total Doctors", len(pd.read_sql("SELECT * FROM doctors", conn)))
+            col4.metric("Total Visits", len(df))
 
-            if not df_app.empty:
+            if not df.empty:
+                chart = df.groupby("date")[["amount","room_amount"]].sum().reset_index()
+                chart["total"] = chart["amount"] + chart["room_amount"]
+                fig = px.bar(chart, x="date", y="total", title="Daily Revenue")
+                st.plotly_chart(fig, use_container_width=True)
 
-                rev_chart = df_app.groupby("date")[["amount","room_amount"]].sum().reset_index()
-                rev_chart["total"] = rev_chart["amount"] + rev_chart["room_amount"]
-
-                fig1 = px.bar(rev_chart, x="date", y="total",
-                              title="Daily Revenue")
-                st.plotly_chart(fig1, use_container_width=True)
-
-                workload = df_app["doctor"].value_counts().reset_index()
+                workload = df["doctor"].value_counts().reset_index()
                 workload.columns = ["Doctor","Appointments"]
-
-                fig2 = px.pie(workload, names="Doctor",
-                              values="Appointments",
+                fig2 = px.pie(workload, names="Doctor", values="Appointments",
                               title="Doctor Workload Distribution")
                 st.plotly_chart(fig2, use_container_width=True)
 
-        # ---------------- DOCTORS ----------------
-        elif page == "Doctors":
+    # ==================================================
+    # RECEPTIONIST
+    # ==================================================
 
-            st.title("Add Doctor Shift")
+    elif role == "Receptionist":
 
-            dname = st.text_input("Doctor Name")
-            demail = st.text_input("Doctor Email")
-            specialist = st.text_input("Specialist")
-            nurse = st.text_input("Allocated Nurse")
-            start = st.time_input("Shift Start", time(8,0))
-            end = st.time_input("Shift End", time(18,0))
+        page = st.sidebar.radio("Receptionist Options",
+                                ["Register Patient",
+                                 "Book Appointment",
+                                 "Room Booking"])
 
-            if st.button("Add Doctor"):
-                try:
+        if page == "Register Patient":
+            st.title("Register Patient")
+            pname = st.text_input("Name")
+            pemail = st.text_input("Email")
+            blood = st.selectbox("Blood Group",
+                                 ["A+","A-","B+","B-","O+","O-","AB+","AB-"])
+            if st.button("Register"):
+                c.execute("INSERT INTO patients VALUES (NULL,?,?,?)",
+                          (pname,pemail,blood))
+                conn.commit()
+                st.success("Registered")
+
+        elif page == "Book Appointment":
+            st.title("Book Appointment")
+            doctors = pd.read_sql("SELECT * FROM doctors", conn)
+            patients = pd.read_sql("SELECT * FROM patients", conn)
+
+            if not doctors.empty and not patients.empty:
+                doctor = st.selectbox("Doctor", doctors["name"])
+                patient = st.selectbox("Patient", patients["name"])
+                date = st.date_input("Date")
+                amount = st.number_input("Appointment Payment")
+                slots = generate_slots(time(8,0), time(18,0))
+                slot = st.selectbox("20-min Slot", slots)
+
+                if st.button("Confirm Booking"):
                     c.execute("""
-                    INSERT INTO doctors
-                    (name,email,specialist,nurse,start_time,end_time)
-                    VALUES (?,?,?,?,?,?)
-                    """,(dname,demail,specialist,nurse,str(start),str(end)))
-
-                    c.execute("INSERT INTO users VALUES (?,?,?,?)",
-                              (demail,hash_password("Doctor@123"),"Doctor",dname))
+                    INSERT INTO appointments
+                    (patient,doctor,slot,date,amount,room,room_amount)
+                    VALUES (?,?,?,?,?,?,?)
+                    """,(patient,doctor,slot,str(date),amount,"",0))
                     conn.commit()
-                    st.success("Doctor Added")
-                except:
-                    st.warning("Doctor already exists")
+                    st.success("Appointment Booked")
 
-            st.dataframe(pd.read_sql("SELECT * FROM doctors",conn))
+        elif page == "Room Booking":
+            st.title("Room Booking")
+            rooms = pd.read_sql("SELECT * FROM rooms WHERE status='Available'", conn)
+            patients = pd.read_sql("SELECT * FROM patients", conn)
 
-        # ---------------- ROOMS ----------------
-        elif page == "Rooms":
+            if not rooms.empty and not patients.empty:
+                room = st.selectbox("Room", rooms["room_name"])
+                patient = st.selectbox("Patient", patients["name"])
+                room_amount = st.number_input("Room Payment")
 
-            st.title("Room Management")
-
-            room = st.text_input("Room Name")
-            rtype = st.selectbox("Room Type",["ICU","General","Private"])
-            status = st.selectbox("Status",["Available","Occupied"])
-
-            if st.button("Add Room"):
-                try:
-                    c.execute("INSERT INTO rooms VALUES (NULL,?,?,?)",
-                              (room,rtype,status))
+                if st.button("Book Room"):
+                    c.execute("""
+                    INSERT INTO appointments
+                    (patient,doctor,slot,date,amount,room,room_amount)
+                    VALUES (?,?,?,?,?,?,?)
+                    """,(patient,"","",str(datetime.now().date()),0,room,room_amount))
+                    c.execute("UPDATE rooms SET status='Occupied' WHERE room_name=?",(room,))
                     conn.commit()
-                    st.success("Room Added")
-                except:
-                    st.warning("Room already exists")
-
-            rooms = pd.read_sql("SELECT * FROM rooms",conn)
-
-            if not rooms.empty:
-                selected = st.selectbox("Select Room", rooms["room_name"])
-                new_status = st.selectbox("Change Status",["Available","Occupied"])
-
-                if st.button("Update Status"):
-                    c.execute("UPDATE rooms SET status=? WHERE room_name=?",
-                              (new_status,selected))
-                    conn.commit()
-                    st.success("Updated")
-
-            st.dataframe(rooms)
+                    st.success("Room Booked")
