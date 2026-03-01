@@ -16,6 +16,7 @@ This layered design ensures scalability, security, and maintainability.
 
 🎯 Core Objectives
 
+
 The main objective of MediVista is to:
 
 Digitize appointment management
@@ -31,6 +32,8 @@ Centralize hospital data in one platform
 Provide graphical insights for decision-making
 
 👥 System Modules
+
+
 👑 Admin Module
 
 The Admin has full control over the system and manages hospital operations.
@@ -61,6 +64,8 @@ View & resolve patient queries
 
 Download appointment reports (CSV)
 
+
+
 👩‍💼 Receptionist Module
 
 The Receptionist handles patient registration and appointment booking.
@@ -85,6 +90,8 @@ Add payment amount
 
 View booked appointments
 
+
+
 👨‍⚕ Doctor Module
 
 The Doctor module provides access to assigned appointments and patient queries.
@@ -103,6 +110,8 @@ Access patient queries
 
 Check shift timings
 
+
+
 👩‍⚕ Nurse Module
 
 The Nurse module ensures better coordination within hospital staff.
@@ -118,6 +127,8 @@ View allocated doctor
 View shift schedule
 
 Role-based limited access
+
+
 
 👤 Patient Module
 
@@ -141,6 +152,8 @@ Send query to Management
 
 Track query status (Pending / Resolved)
 
+
+
 📊 Dashboard & Analytics
 
 The Admin dashboard provides real-time hospital insights.
@@ -160,6 +173,8 @@ Daily Revenue Graph
 Daily Patient Visits Graph
 
 Graphs are built using Plotly visualization engine.
+
+
 
 🏗 System Architecture
 
@@ -200,6 +215,8 @@ SQLite (Database)
 Plotly (Visualization)
 
 Hashlib (Password Security)
+
+
 
 🔐 Security Features
 
