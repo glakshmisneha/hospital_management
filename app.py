@@ -5,9 +5,9 @@ import plotly.express as px
 import hashlib
 from datetime import datetime, timedelta, time
 
-# ======================================================
+# =====================================================
 # DATABASE CONNECTION (SAFE)
-# ======================================================
+# =====================================================
 
 @st.cache_resource
 def get_connection():
@@ -18,9 +18,9 @@ def get_connection():
 conn = get_connection()
 c = conn.cursor()
 
-# ======================================================
-# INITIALIZE DATABASE
-# ======================================================
+# =====================================================
+# INITIALIZE DATABASE + DEMO DATA
+# =====================================================
 
 def init_db():
 
@@ -86,15 +86,6 @@ def init_db():
     )
     """)
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS queries(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        sender TEXT,
-        target TEXT,
-        message TEXT
-    )
-    """)
-
     # Default Admin
     c.execute("""
     INSERT OR IGNORE INTO users
@@ -104,13 +95,29 @@ def init_db():
             'Super Admin')
     """, (hashlib.sha256("Admin@123".encode()).hexdigest(),))
 
+    # DEMO DATA (Only if empty)
+    if not pd.read_sql("SELECT * FROM doctors", conn).shape[0]:
+        c.execute("""
+        INSERT INTO doctors (name,email,specialist,nurse,start_time,end_time)
+        VALUES ('Dr. Smith','drsmith@hospital.com','Cardiology','Nurse Mary','08:00:00','18:00:00')
+        """)
+        c.execute("INSERT INTO users VALUES (?,?,?,?)",
+                  ('drsmith@hospital.com',
+                   hashlib.sha256("Doctor@123".encode()).hexdigest(),
+                   'Doctor',
+                   'Dr. Smith'))
+
+    if not pd.read_sql("SELECT * FROM rooms", conn).shape[0]:
+        c.execute("INSERT INTO rooms VALUES (NULL,'Room101','General','Available')")
+        c.execute("INSERT INTO rooms VALUES (NULL,'Room102','Private','Available')")
+
     conn.commit()
 
 init_db()
 
-# ======================================================
+# =====================================================
 # UTILITIES
-# ======================================================
+# =====================================================
 
 def hash_password(p):
     return hashlib.sha256(p.encode()).hexdigest()
@@ -124,9 +131,9 @@ def generate_slots(start, end):
         current += timedelta(minutes=20)
     return slots
 
-# ======================================================
+# =====================================================
 # UI STYLE
-# ======================================================
+# =====================================================
 
 st.set_page_config(layout="wide")
 
@@ -140,16 +147,16 @@ border-radius:20px;color:white;font-weight:bold;}
 </style>
 """, unsafe_allow_html=True)
 
-# ======================================================
+# =====================================================
 # SESSION
-# ======================================================
+# =====================================================
 
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# ======================================================
+# =====================================================
 # LOGIN / REGISTER
-# ======================================================
+# =====================================================
 
 if st.session_state.user is None:
 
@@ -167,9 +174,9 @@ if st.session_state.user is None:
                 c.execute("INSERT INTO users VALUES (?,?,?,?)",
                           (email,hash_password(password),role,email))
                 conn.commit()
-                st.success("Registered Successfully")
+                st.success("Registered")
             except:
-                st.warning("User already exists")
+                st.warning("User exists")
 
     if mode == "Login":
         if st.button("Login"):
@@ -182,9 +189,9 @@ if st.session_state.user is None:
             else:
                 st.error("Invalid credentials")
 
-# ======================================================
+# =====================================================
 # MAIN SYSTEM
-# ======================================================
+# =====================================================
 
 else:
 
@@ -204,33 +211,24 @@ else:
 
     if role == "Admin":
 
-        page = st.sidebar.radio("Navigation",
-            ["Dashboard","Doctors","Nurses","Rooms","Staff Registration","Queries"])
+        st.title("📊 Hospital Dashboard")
 
-        if page == "Dashboard":
+        df = pd.read_sql("SELECT * FROM appointments", conn)
+        revenue = df["amount"].sum() + df["room_amount"].sum() if not df.empty else 0
 
-            st.title("📊 Hospital Dashboard")
+        col1,col2,col3,col4 = st.columns(4)
+        col1.metric("Total Revenue", f"₹ {revenue}")
+        col2.metric("Total Patients", len(pd.read_sql("SELECT * FROM patients", conn)))
+        col3.metric("Total Doctors", len(pd.read_sql("SELECT * FROM doctors", conn)))
+        col4.metric("Total Visits", len(df))
 
-            df = pd.read_sql("SELECT * FROM appointments", conn)
-            revenue = df["amount"].sum() + df["room_amount"].sum() if not df.empty else 0
-
-            col1,col2,col3,col4 = st.columns(4)
-            col1.metric("Total Revenue", f"₹ {revenue}")
-            col2.metric("Total Patients", len(pd.read_sql("SELECT * FROM patients", conn)))
-            col3.metric("Total Doctors", len(pd.read_sql("SELECT * FROM doctors", conn)))
-            col4.metric("Total Visits", len(df))
-
-            if not df.empty:
-                chart = df.groupby("date")[["amount","room_amount"]].sum().reset_index()
-                chart["total"] = chart["amount"] + chart["room_amount"]
-                fig = px.bar(chart, x="date", y="total", title="Daily Revenue")
-                st.plotly_chart(fig, use_container_width=True)
-
-                workload = df["doctor"].value_counts().reset_index()
-                workload.columns = ["Doctor","Appointments"]
-                fig2 = px.pie(workload, names="Doctor", values="Appointments",
-                              title="Doctor Workload Distribution")
-                st.plotly_chart(fig2, use_container_width=True)
+        if not df.empty:
+            chart = df.groupby("date")[["amount","room_amount"]].sum().reset_index()
+            chart["total"] = chart["amount"] + chart["room_amount"]
+            fig = px.bar(chart, x="date", y="total", title="Daily Revenue")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No appointments yet. Book some to see analytics.")
 
     # ==================================================
     # RECEPTIONIST
@@ -238,61 +236,22 @@ else:
 
     elif role == "Receptionist":
 
-        page = st.sidebar.radio("Receptionist Options",
-                                ["Register Patient",
-                                 "Book Appointment",
-                                 "Room Booking"])
+        st.title("Receptionist Panel")
 
-        if page == "Register Patient":
-            st.title("Register Patient")
-            pname = st.text_input("Name")
-            pemail = st.text_input("Email")
-            blood = st.selectbox("Blood Group",
-                                 ["A+","A-","B+","B-","O+","O-","AB+","AB-"])
-            if st.button("Register"):
-                c.execute("INSERT INTO patients VALUES (NULL,?,?,?)",
-                          (pname,pemail,blood))
+        doctors = pd.read_sql("SELECT * FROM doctors", conn)
+
+        if not doctors.empty:
+            doctor = st.selectbox("Doctor", doctors["name"])
+            patient = st.text_input("Patient Name")
+            amount = st.number_input("Appointment Payment")
+            slots = generate_slots(time(8,0), time(18,0))
+            slot = st.selectbox("Slot", slots)
+
+            if st.button("Book Appointment"):
+                c.execute("""
+                INSERT INTO appointments
+                (patient,doctor,slot,date,amount,room,room_amount)
+                VALUES (?,?,?,?,?,?,?)
+                """,(patient,doctor,slot,str(datetime.now().date()),amount,"",0))
                 conn.commit()
-                st.success("Registered")
-
-        elif page == "Book Appointment":
-            st.title("Book Appointment")
-            doctors = pd.read_sql("SELECT * FROM doctors", conn)
-            patients = pd.read_sql("SELECT * FROM patients", conn)
-
-            if not doctors.empty and not patients.empty:
-                doctor = st.selectbox("Doctor", doctors["name"])
-                patient = st.selectbox("Patient", patients["name"])
-                date = st.date_input("Date")
-                amount = st.number_input("Appointment Payment")
-                slots = generate_slots(time(8,0), time(18,0))
-                slot = st.selectbox("20-min Slot", slots)
-
-                if st.button("Confirm Booking"):
-                    c.execute("""
-                    INSERT INTO appointments
-                    (patient,doctor,slot,date,amount,room,room_amount)
-                    VALUES (?,?,?,?,?,?,?)
-                    """,(patient,doctor,slot,str(date),amount,"",0))
-                    conn.commit()
-                    st.success("Appointment Booked")
-
-        elif page == "Room Booking":
-            st.title("Room Booking")
-            rooms = pd.read_sql("SELECT * FROM rooms WHERE status='Available'", conn)
-            patients = pd.read_sql("SELECT * FROM patients", conn)
-
-            if not rooms.empty and not patients.empty:
-                room = st.selectbox("Room", rooms["room_name"])
-                patient = st.selectbox("Patient", patients["name"])
-                room_amount = st.number_input("Room Payment")
-
-                if st.button("Book Room"):
-                    c.execute("""
-                    INSERT INTO appointments
-                    (patient,doctor,slot,date,amount,room,room_amount)
-                    VALUES (?,?,?,?,?,?,?)
-                    """,(patient,"","",str(datetime.now().date()),0,room,room_amount))
-                    c.execute("UPDATE rooms SET status='Occupied' WHERE room_name=?",(room,))
-                    conn.commit()
-                    st.success("Room Booked")
+                st.success("Booked Successfully")
