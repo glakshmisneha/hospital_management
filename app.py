@@ -5,9 +5,9 @@ import plotly.express as px
 import hashlib
 from datetime import datetime, timedelta, time
 
-# =====================================================
-# DATABASE CONNECTION (SAFE)
-# =====================================================
+# ======================================================
+# DATABASE CONNECTION
+# ======================================================
 
 @st.cache_resource
 def get_connection():
@@ -18,9 +18,9 @@ def get_connection():
 conn = get_connection()
 c = conn.cursor()
 
-# =====================================================
-# INITIALIZE DATABASE + DEMO DATA
-# =====================================================
+# ======================================================
+# INITIALIZE DATABASE
+# ======================================================
 
 def init_db():
 
@@ -86,6 +86,15 @@ def init_db():
     )
     """)
 
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS queries(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender TEXT,
+        target TEXT,
+        message TEXT
+    )
+    """)
+
     # Default Admin
     c.execute("""
     INSERT OR IGNORE INTO users
@@ -95,29 +104,13 @@ def init_db():
             'Super Admin')
     """, (hashlib.sha256("Admin@123".encode()).hexdigest(),))
 
-    # DEMO DATA (Only if empty)
-    if not pd.read_sql("SELECT * FROM doctors", conn).shape[0]:
-        c.execute("""
-        INSERT INTO doctors (name,email,specialist,nurse,start_time,end_time)
-        VALUES ('Dr. Smith','drsmith@hospital.com','Cardiology','Nurse Mary','08:00:00','18:00:00')
-        """)
-        c.execute("INSERT INTO users VALUES (?,?,?,?)",
-                  ('drsmith@hospital.com',
-                   hashlib.sha256("Doctor@123".encode()).hexdigest(),
-                   'Doctor',
-                   'Dr. Smith'))
-
-    if not pd.read_sql("SELECT * FROM rooms", conn).shape[0]:
-        c.execute("INSERT INTO rooms VALUES (NULL,'Room101','General','Available')")
-        c.execute("INSERT INTO rooms VALUES (NULL,'Room102','Private','Available')")
-
     conn.commit()
 
 init_db()
 
-# =====================================================
+# ======================================================
 # UTILITIES
-# =====================================================
+# ======================================================
 
 def hash_password(p):
     return hashlib.sha256(p.encode()).hexdigest()
@@ -131,9 +124,9 @@ def generate_slots(start, end):
         current += timedelta(minutes=20)
     return slots
 
-# =====================================================
+# ======================================================
 # UI STYLE
-# =====================================================
+# ======================================================
 
 st.set_page_config(layout="wide")
 
@@ -147,16 +140,16 @@ border-radius:20px;color:white;font-weight:bold;}
 </style>
 """, unsafe_allow_html=True)
 
-# =====================================================
+# ======================================================
 # SESSION
-# =====================================================
+# ======================================================
 
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# =====================================================
+# ======================================================
 # LOGIN / REGISTER
-# =====================================================
+# ======================================================
 
 if st.session_state.user is None:
 
@@ -174,9 +167,9 @@ if st.session_state.user is None:
                 c.execute("INSERT INTO users VALUES (?,?,?,?)",
                           (email,hash_password(password),role,email))
                 conn.commit()
-                st.success("Registered")
+                st.success("Registered Successfully")
             except:
-                st.warning("User exists")
+                st.warning("User already exists")
 
     if mode == "Login":
         if st.button("Login"):
@@ -189,9 +182,9 @@ if st.session_state.user is None:
             else:
                 st.error("Invalid credentials")
 
-# =====================================================
+# ======================================================
 # MAIN SYSTEM
-# =====================================================
+# ======================================================
 
 else:
 
@@ -206,52 +199,48 @@ else:
         st.rerun()
 
     # ==================================================
-    # ADMIN DASHBOARD
+    # ADMIN PANEL
     # ==================================================
 
     if role == "Admin":
 
-        st.title("📊 Hospital Dashboard")
+        page = st.sidebar.radio("Navigation",
+            ["Dashboard","Doctors","Nurses","Rooms","Staff Registration","Queries"])
 
-        df = pd.read_sql("SELECT * FROM appointments", conn)
-        revenue = df["amount"].sum() + df["room_amount"].sum() if not df.empty else 0
+        if page == "Dashboard":
 
-        col1,col2,col3,col4 = st.columns(4)
-        col1.metric("Total Revenue", f"₹ {revenue}")
-        col2.metric("Total Patients", len(pd.read_sql("SELECT * FROM patients", conn)))
-        col3.metric("Total Doctors", len(pd.read_sql("SELECT * FROM doctors", conn)))
-        col4.metric("Total Visits", len(df))
+            st.title("📊 Hospital Dashboard")
 
-        if not df.empty:
-            chart = df.groupby("date")[["amount","room_amount"]].sum().reset_index()
-            chart["total"] = chart["amount"] + chart["room_amount"]
-            fig = px.bar(chart, x="date", y="total", title="Daily Revenue")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No appointments yet. Book some to see analytics.")
+            df = pd.read_sql("SELECT * FROM appointments", conn)
+            revenue = df["amount"].sum() + df["room_amount"].sum() if not df.empty else 0
 
-    # ==================================================
-    # RECEPTIONIST
-    # ==================================================
+            col1,col2,col3,col4 = st.columns(4)
+            col1.metric("Total Revenue", f"₹ {revenue}")
+            col2.metric("Total Patients", len(pd.read_sql("SELECT * FROM patients", conn)))
+            col3.metric("Total Doctors", len(pd.read_sql("SELECT * FROM doctors", conn)))
+            col4.metric("Total Visits", len(df))
 
-    elif role == "Receptionist":
+            if not df.empty:
+                chart = df.groupby("date")[["amount","room_amount"]].sum().reset_index()
+                chart["total"] = chart["amount"] + chart["room_amount"]
+                fig = px.bar(chart, x="date", y="total", title="Daily Revenue")
+                st.plotly_chart(fig, use_container_width=True)
 
-        st.title("Receptionist Panel")
+        elif page == "Doctors":
+            st.title("Doctor Management")
+            st.dataframe(pd.read_sql("SELECT * FROM doctors",conn))
 
-        doctors = pd.read_sql("SELECT * FROM doctors", conn)
+        elif page == "Nurses":
+            st.title("Nurse Management")
+            st.dataframe(pd.read_sql("SELECT * FROM nurses",conn))
 
-        if not doctors.empty:
-            doctor = st.selectbox("Doctor", doctors["name"])
-            patient = st.text_input("Patient Name")
-            amount = st.number_input("Appointment Payment")
-            slots = generate_slots(time(8,0), time(18,0))
-            slot = st.selectbox("Slot", slots)
+        elif page == "Rooms":
+            st.title("Room Management")
+            st.dataframe(pd.read_sql("SELECT * FROM rooms",conn))
 
-            if st.button("Book Appointment"):
-                c.execute("""
-                INSERT INTO appointments
-                (patient,doctor,slot,date,amount,room,room_amount)
-                VALUES (?,?,?,?,?,?,?)
-                """,(patient,doctor,slot,str(datetime.now().date()),amount,"",0))
-                conn.commit()
-                st.success("Booked Successfully")
+        elif page == "Staff Registration":
+            st.title("Register Staff")
+
+        elif page == "Queries":
+            st.title("Patient Queries")
+            st.dataframe(pd.read_sql("SELECT * FROM queries",conn))
